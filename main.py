@@ -873,11 +873,18 @@ async def give_role(ctx, member: discord.Member):
 def run_bot():
     """Botを別スレッドで実行"""
     if DISCORD_BOT_TOKEN:
+        print(f"Bot Token設定確認: {'設定済み' if DISCORD_BOT_TOKEN else '未設定'}")
+        print(f"Bot Token長さ: {len(DISCORD_BOT_TOKEN) if DISCORD_BOT_TOKEN else 0}")
         asyncio.set_event_loop(asyncio.new_event_loop())
         try:
             bot.run(DISCORD_BOT_TOKEN)
+        except discord.LoginFailure as e:
+            print(f"Discord認証エラー: {e}")
+            print("Bot Tokenが無効です。Discord Developer Portalで新しいトークンを生成してください。")
         except Exception as e:
             print(f"Bot実行エラー: {e}")
+    else:
+        print("DISCORD_BOT_TOKENが設定されていません")
 
 def run_flask():
     """Flaskアプリを実行"""
@@ -886,14 +893,19 @@ def run_flask():
 
 if __name__ == '__main__':
     print("Discord OAuth2認証システムを開始しています...")
-    print("必要な環境変数を設定してください:")
-    print("- DISCORD_CLIENT_ID (必須)")
-    print("- DISCORD_CLIENT_SECRET (必須)") 
-    print("- DISCORD_BOT_TOKEN (必須)")
-    print("- GUILD_ID (オプション: ロール付与機能用)")
-    print("- ROLE_ID (オプション: ロール付与機能用)")
-    print("- DISCORD_REDIRECT_URI (オプション)")
+    print("環境変数確認:")
+    print(f"- DISCORD_CLIENT_ID: {'設定済み' if DISCORD_CLIENT_ID else '未設定'}")
+    print(f"- DISCORD_CLIENT_SECRET: {'設定済み' if DISCORD_CLIENT_SECRET else '未設定'}")
+    print(f"- DISCORD_BOT_TOKEN: {'設定済み' if DISCORD_BOT_TOKEN else '未設定'}")
+    print(f"- DISCORD_REDIRECT_URI: {DISCORD_REDIRECT_URI}")
+    print(f"- GUILD_ID: {GUILD_ID if GUILD_ID else '未設定'}")
+    print(f"- ROLE_ID: {ROLE_ID if ROLE_ID else '未設定'}")
     print()
+    
+    if not DISCORD_BOT_TOKEN:
+        print("❌ DISCORD_BOT_TOKENが設定されていません。")
+        print("Render.comのダッシュボードで環境変数を設定してください。")
+    
     if not GUILD_ID or GUILD_ID == 0:
         print("注意: GUILD_IDが設定されていません。")
         print("Botが参加しているサーバーから自動的に検出を試みます。")
