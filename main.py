@@ -289,24 +289,82 @@ SUCCESS_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>認証成功</title>
+    <title>認証完了</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .user-info { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; }
-        .btn { display: inline-block; padding: 10px 20px; background: #5865F2; color: white; text-decoration: none; border-radius: 5px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background-color: #f8f9fa;
+            text-align: center;
+        }
+        .success-container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-top: 50px;
+        }
+        .success-icon {
+            font-size: 4em;
+            color: #28a745;
+            margin-bottom: 20px;
+        }
+        h1 { 
+            color: #28a745; 
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+        .success-message {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .btn { 
+            display: inline-block; 
+            padding: 12px 30px; 
+            background: #5865F2; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .btn:hover { background: #4752C4; }
+        .role-status {
+            background: #e8f5e8;
+            color: #2d5016;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
     </style>
 </head>
 <body>
-    <h1>認証成功!</h1>
-    <div class="user-info">
-        <h3>ユーザー情報:</h3>
-        <p><strong>ユーザー名:</strong> {{ username }}</p>
-        <p><strong>Discord ID:</strong> {{ user_id }}</p>
-        <p><strong>メールアドレス:</strong> {{ email }}</p>
-        <p><strong>IPアドレス:</strong> {{ ip_address }}</p>
-        <p><strong>ロール付与状態:</strong> {{ role_status }}</p>
+    <div class="success-container">
+        <div class="success-icon">✅</div>
+        <h1>認証完了！</h1>
+        <div class="success-message">
+            Discord認証が正常に完了しました。<br>
+            ようこそ！
+        </div>
+        
+        {% if role_status != "ロール付与に失敗しました" %}
+        <div class="role-status">
+            {% if role_status == "ロール付与はスキップされました（GUILD_ID未設定）" %}
+            ℹ️ ロール付与機能は現在設定されていません
+            {% elif role_status == "ロールが正常に付与されました" %}
+            🎭 ロールが正常に付与されました
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <a href="/logout" class="btn">ログアウト</a>
     </div>
-    <a href="/logout" class="btn">ログアウト</a>
 </body>
 </html>
 '''
@@ -404,8 +462,6 @@ ADMIN_TEMPLATE = '''
 @app.route('/')
 def home():
     if 'access_token' in session:
-        user_info = session.get('user_info')
-        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
         role_granted = session.get('role_granted')
 
         if role_granted == "スキップ":
@@ -415,12 +471,7 @@ def home():
         else:
             role_status = "ロール付与に失敗しました"
 
-        return render_template_string(SUCCESS_TEMPLATE, 
-                                    username=user_info.get('username'),
-                                    user_id=user_info.get('id'),
-                                    email=user_info.get('email'),
-                                    ip_address=ip_address,
-                                    role_status=role_status)
+        return render_template_string(SUCCESS_TEMPLATE, role_status=role_status)
 
     # Botが参加しているサーバー一覧を取得
     guilds = get_bot_guilds()
