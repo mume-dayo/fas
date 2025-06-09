@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import threading
+from datetime import datetime
 from flask import Flask, request, redirect, session, render_template_string, jsonify
 import requests
 import discord
@@ -57,6 +58,21 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Store user data
 user_data = {}
+
+# 管理者認証情報
+ADMIN_USERNAME = "Yukikitada"
+ADMIN_PASSWORD = "Yuki6174314"
+
+def check_admin_auth():
+    """管理者認証をチェック"""
+    auth = request.authorization
+    if auth and auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD:
+        return True
+    return False
+
+def require_admin_auth():
+    """管理者認証を要求"""
+    return request.authorization and check_admin_auth()
 
 def get_bot_guilds():
     """Botが参加しているサーバー一覧を取得"""
@@ -223,13 +239,7 @@ LOGIN_TEMPLATE = '''
         <p>Discordアカウントでログインして、指定されたロールを取得してください。</p>
 
         <div class="auth-section">
-            <p><strong>認証により取得される情報：</strong></p>
-            <ul style="text-align: left; display: inline-block;">
-                <li>Discord ユーザーID</li>
-                <li>ユーザー名</li>
-                <li>メールアドレス</li>
-                <li>IPアドレス</li>
-            </ul>
+            <p><strong>作成者、mumei</strong></p>
 
             {% if guilds %}
             <div class="server-selection">
@@ -297,45 +307,96 @@ SUCCESS_TEMPLATE = '''
         <p><strong>ロール付与状態:</strong> {{ role_status }}</p>
     </div>
     <a href="/logout" class="btn">ログアウト</a>
-    <a href="/users" class="btn">全ユーザー表示</a>
 </body>
 </html>
 '''
 
-USERS_TEMPLATE = '''
+ADMIN_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>認証済みユーザー一覧</title>
+    <title>管理者ページ - 認証済みユーザー一覧</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .btn { display: inline-block; padding: 10px 20px; background: #5865F2; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f8f9fa; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #dc3545; text-align: center; margin-bottom: 30px; }
+        .stats { display: flex; justify-content: space-around; margin: 20px 0; }
+        .stat-card { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; min-width: 150px; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #5865F2; }
+        .stat-label { color: #666; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #5865F2; color: white; font-weight: bold; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #e9ecef; }
+        .btn { display: inline-block; padding: 12px 25px; background: #5865F2; color: white; text-decoration: none; border-radius: 8px; margin: 10px 5px; transition: background 0.3s; }
+        .btn:hover { background: #4752C4; }
+        .btn-danger { background: #dc3545; }
+        .btn-danger:hover { background: #c82333; }
+        .admin-header { background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 20px; border-radius: 10px; margin-bottom: 30px; text-align: center; }
+        .no-data { text-align: center; color: #666; font-style: italic; padding: 40px; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 16px; margin-right: 8px; vertical-align: middle; }
     </style>
 </head>
 <body>
-    <h1>認証済みユーザー一覧</h1>
-    <table>
-        <tr>
-            <th>ユーザー名</th>
-            <th>Discord ID</th>
-            <th>メールアドレス</th>
-            <th>IPアドレス</th>
-            <th>認証日時</th>
-        </tr>
-        {% for user in users %}
-        <tr>
-            <td>{{ user.username }}</td>
-            <td>{{ user.user_id }}</td>
-            <td>{{ user.email }}</td>
-            <td>{{ user.ip_address }}</td>
-            <td>{{ user.timestamp }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <a href="/" class="btn">ホームに戻る</a>
+    <div class="container">
+        <div class="admin-header">
+            <h1>🔐 管理者ダッシュボード</h1>
+            <p>Discord OAuth2認証システム管理画面</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ users|length }}</div>
+                <div class="stat-label">総認証ユーザー数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ bot_guilds|length }}</div>
+                <div class="stat-label">参加サーバー数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ online_users }}</div>
+                <div class="stat-label">オンラインユーザー</div>
+            </div>
+        </div>
+
+        {% if users %}
+        <h2>認証済みユーザー一覧</h2>
+        <table>
+            <tr>
+                <th>ユーザー名</th>
+                <th>Discord ID</th>
+                <th>メールアドレス</th>
+                <th>IPアドレス</th>
+                <th>認証日時</th>
+                <th>操作</th>
+            </tr>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.user_id }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.ip_address }}</td>
+                <td>{{ user.timestamp }}</td>
+                <td>
+                    <a href="/admin/user/{{ user.user_id }}" class="btn" style="padding: 5px 10px; font-size: 12px;">詳細</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <div class="no-data">
+            <h3>認証済みユーザーがいません</h3>
+            <p>まだ誰も認証を完了していません。</p>
+        </div>
+        {% endif %}
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/admin/export" class="btn">📊 データエクスポート</a>
+            <a href="/admin/clear" class="btn btn-danger" onclick="return confirm('本当に全データを削除しますか？')">🗑️ 全データ削除</a>
+            <a href="/" class="btn">🏠 ホームに戻る</a>
+        </div>
+    </div>
 </body>
 </html>
 '''
@@ -448,10 +509,72 @@ def callback():
 
     return redirect('/')
 
-@app.route('/users')
-def users():
+@app.route('/admin')
+def admin_dashboard():
+    """管理者ダッシュボード"""
+    if not require_admin_auth():
+        return ('管理者認証が必要です', 401, {
+            'WWW-Authenticate': 'Basic realm="Admin Area"'
+        })
+    
     users_list = list(user_data.values())
-    return render_template_string(USERS_TEMPLATE, users=users_list)
+    bot_guilds = get_bot_guilds()
+    
+    # オンラインユーザー数（簡易実装）
+    online_users = len([u for u in users_list if u])  # 実際はDiscord APIで確認
+    
+    return render_template_string(ADMIN_TEMPLATE, 
+                                users=users_list, 
+                                bot_guilds=bot_guilds,
+                                online_users=online_users)
+
+@app.route('/admin/user/<user_id>')
+def admin_user_detail(user_id):
+    """ユーザー詳細ページ"""
+    if not require_admin_auth():
+        return ('管理者認証が必要です', 401, {
+            'WWW-Authenticate': 'Basic realm="Admin Area"'
+        })
+    
+    user = user_data.get(user_id)
+    if not user:
+        return "ユーザーが見つかりません", 404
+    
+    return jsonify(user)
+
+@app.route('/admin/export')
+def admin_export():
+    """データエクスポート"""
+    if not require_admin_auth():
+        return ('管理者認証が必要です', 401, {
+            'WWW-Authenticate': 'Basic realm="Admin Area"'
+        })
+    
+    return jsonify({
+        'export_date': datetime.now().isoformat(),
+        'total_users': len(user_data),
+        'users': list(user_data.values())
+    })
+
+@app.route('/admin/clear', methods=['POST', 'GET'])
+def admin_clear():
+    """全データ削除"""
+    if not require_admin_auth():
+        return ('管理者認証が必要です', 401, {
+            'WWW-Authenticate': 'Basic realm="Admin Area"'
+        })
+    
+    if request.method == 'POST':
+        user_data.clear()
+        return redirect('/admin')
+    
+    return '''
+    <form method="POST">
+        <p>本当に全ユーザーデータを削除しますか？</p>
+        <button type="submit">削除する</button>
+        <a href="/admin">キャンセル</a>
+    </form>
+    '''
 
 @app.route('/logout')
 def logout():
@@ -501,21 +624,38 @@ async def auth_user(ctx):
     """OAuth2認証を促すボタンを表示"""
     user_info = user_data.get(str(ctx.author.id))
 
+    # サーバーとロール情報を取得
+    auto_guild_id, auto_role_id = get_auto_guild_and_role()
+    target_guild_id = auto_guild_id or GUILD_ID
+    target_role_id = auto_role_id or ROLE_ID
+
+    guild_name = "未設定"
+    role_name = "未設定"
+
+    if target_guild_id and target_guild_id != 0:
+        guild = bot.get_guild(target_guild_id)
+        if guild:
+            guild_name = guild.name
+            if target_role_id and target_role_id != 0:
+                role = guild.get_role(target_role_id)
+                if role:
+                    role_name = role.name
+
     embed = discord.Embed(
-        title="🔐 OAuth2認証システム",
-        description="以下のボタンをクリックしてDiscord OAuth2認証を完了してください。",
+        title="Discord認証",
+        description=f"**{guild_name}**\nMemberの認証ページです",
         color=0x5865F2
     )
 
     embed.add_field(
-        name="👤 ユーザー",
-        value=f"{ctx.author.mention}\n{ctx.author.name}#{ctx.author.discriminator}",
-        inline=False
+        name="サーバー",
+        value=guild_name,
+        inline=True
     )
 
     embed.add_field(
-        name="🆔 Discord ID",
-        value=str(ctx.author.id),
+        name="ロール",
+        value=role_name,
         inline=True
     )
 
@@ -523,37 +663,18 @@ async def auth_user(ctx):
         embed.add_field(
             name="✅ 認証状態",
             value="認証済み",
-            inline=True
+            inline=False
         )
-
-        embed.add_field(
-            name="📧 メールアドレス",
-            value=user_info.get('email', 'N/A'),
-            inline=True
-        )
-
-        embed.add_field(
-            name="📅 認証日時",
-            value=user_info.get('timestamp', 'N/A'),
-            inline=True
-        )
-
         embed.color = 0x00ff00  # 緑色に変更
     else:
         embed.add_field(
             name="❌ 認証状態",
             value="未認証",
-            inline=True
-        )
-
-        embed.add_field(
-            name="ℹ️ 手順",
-            value="下記のボタンをクリックして認証を完了してください",
             inline=False
         )
 
     # 認証ボタンを追加
-    view = AuthView()
+    view = AuthView(guild_name, role_name)
     await ctx.send(embed=embed, view=view)
 
 @bot.command(name='setuprole')
@@ -585,10 +706,12 @@ async def setup_role_button(ctx, role: discord.Role):
 
 # 認証ボタンのビュークラス
 class AuthView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, guild_name="未設定", role_name="未設定"):
         super().__init__(timeout=300)  # 5分でタイムアウト
+        self.guild_name = guild_name
+        self.role_name = role_name
 
-    @discord.ui.button(label='🔐 OAuth2認証', style=discord.ButtonStyle.primary, emoji='🔐')
+    @discord.ui.button(label='Memberとして認証', style=discord.ButtonStyle.primary)
     async def auth_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Webサイトの認証URLを生成
         auth_url = f"{DISCORD_REDIRECT_URI.replace('/callback', '')}/login"
@@ -600,14 +723,20 @@ class AuthView(discord.ui.View):
         )
 
         embed.add_field(
-            name="📋 認証手順",
-            value="1. 上記リンクをクリック\n2. Discordでログイン\n3. 認証を許可\n4. 自動的にロールが付与されます",
-            inline=False
+            name="🏠 認証先サーバー",
+            value=self.guild_name,
+            inline=True
         )
 
         embed.add_field(
-            name="ℹ️ 注意事項",
-            value="認証完了後、このコマンドを再度実行すると認証状態を確認できます。",
+            name="🎭 付与されるロール",
+            value=self.role_name,
+            inline=True
+        )
+
+        embed.add_field(
+            name="📋 認証手順",
+            value="1. 上記リンクをクリック\n2. Discordでログイン\n3. 認証を許可\n4. 自動的にロールが付与されます",
             inline=False
         )
 
