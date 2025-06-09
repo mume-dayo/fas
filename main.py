@@ -22,6 +22,30 @@ DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 GUILD_ID = int(os.environ.get('GUILD_ID', '0')) if os.environ.get('GUILD_ID', '0').isdigit() else 0
 ROLE_ID = int(os.environ.get('ROLE_ID', '0')) if os.environ.get('ROLE_ID', '0').isdigit() else 0
 
+def get_auto_guild_and_role():
+    """Botが参加しているサーバーから自動的にGUILD_IDとROLE_IDを取得"""
+    if not bot.is_ready():
+        return None, None
+    
+    # 環境変数で指定されている場合はそれを優先
+    if GUILD_ID and GUILD_ID != 0 and ROLE_ID and ROLE_ID != 0:
+        return GUILD_ID, ROLE_ID
+    
+    # Botが参加している最初のサーバーを取得
+    if bot.guilds:
+        guild = bot.guilds[0]
+        # そのサーバーの@everyone以外の最初のロールを取得
+        for role in guild.roles:
+            if role.name != "@everyone" and not role.managed:
+                print(f"自動選択: サーバー '{guild.name}' (ID: {guild.id}), ロール '{role.name}' (ID: {role.id})")
+                return guild.id, role.id
+        
+        # 適切なロールが見つからない場合はサーバーIDのみ返す
+        print(f"自動選択: サーバー '{guild.name}' (ID: {guild.id}), ロールなし")
+        return guild.id, None
+    
+    return None, None
+
 # サーバー選択用のデータ
 server_data = {}
 
@@ -62,12 +86,17 @@ def get_bot_guilds():
 
 async def assign_role_to_user(user_id, access_token, guild_id=None, role_id=None):
     """ユーザーにロールを付与する非同期関数"""
-    # パラメータで指定されない場合は環境変数を使用
-    target_guild_id = guild_id or GUILD_ID
-    target_role_id = role_id or ROLE_ID
+    # パラメータで指定されない場合は自動検出または環境変数を使用
+    if guild_id is None or role_id is None:
+        auto_guild_id, auto_role_id = get_auto_guild_and_role()
+        target_guild_id = guild_id or auto_guild_id or GUILD_ID
+        target_role_id = role_id or auto_role_id or ROLE_ID
+    else:
+        target_guild_id = guild_id
+        target_role_id = role_id
 
     if not target_guild_id or target_guild_id == 0:
-        print("GUILD_IDが設定されていないため、ロール付与をスキップします")
+        print("GUILD_IDが設定されておらず、自動検出もできないため、ロール付与をスキップします")
         return "スキップ"
 
     try:
@@ -444,6 +473,24 @@ def api_guilds():
 async def on_ready():
     print(f'{bot.user} としてログインしました!')
     print(f'Bot ID: {bot.user.id}')
+    
+    # 参加しているサーバー一覧を表示
+    print(f'参加サーバー数: {len(bot.guilds)}')
+    for guild in bot.guilds:
+        print(f'  - {guild.name} (ID: {guild.id}, メンバー数: {guild.member_count})')
+    
+    # 自動検出されたGUILD_IDとROLE_IDを表示
+    auto_guild_id, auto_role_id = get_auto_guild_and_role()
+    if auto_guild_id:
+        guild = bot.get_guild(auto_guild_id)
+        role = bot.get_guild(auto_guild_id).get_role(auto_role_id) if auto_role_id else None
+        print(f'自動検出: デフォルトサーバー "{guild.name}" (ID: {auto_guild_id})')
+        if role:
+            print(f'自動検出: デフォルトロール "{role.name}" (ID: {auto_role_id})')
+        else:
+            print('自動検出: デフォルトロールなし')
+    else:
+        print('自動検出: サーバーが見つかりません')
 
 @bot.event
 async def on_member_join(member):
@@ -629,11 +676,14 @@ class RoleAssignView(discord.ui.View):
 @commands.has_permissions(administrator=True)
 async def give_role(ctx, member: discord.Member):
     """指定したメンバーにロールを付与"""
-    if not ROLE_ID or ROLE_ID == 0:
-        await ctx.send("ROLE_IDが設定されていないため、ロールを付与できません。")
+    auto_guild_id, auto_role_id = get_auto_guild_and_role()
+    target_role_id = auto_role_id or ROLE_ID
+    
+    if not target_role_id or target_role_id == 0:
+        await ctx.send("ROLE_IDが設定されておらず、自動検出もできないため、ロールを付与できません。")
         return
 
-    role = ctx.guild.get_role(ROLE_ID)
+    role = ctx.guild.get_role(target_role_id)
     if role:
         await member.add_roles(role)
         await ctx.send(f'{member.mention} に {role.name} ロールを付与しました！')
@@ -665,8 +715,10 @@ if __name__ == '__main__':
     print("- DISCORD_REDIRECT_URI (オプション)")
     print()
     if not GUILD_ID or GUILD_ID == 0:
-        print("注意: GUILD_IDが設定されていないため、ロール付与機能は無効です。")
-        print("認証とユーザー情報取得のみ動作します。")
+        print("注意: GUILD_IDが設定されていません。")
+        print("Botが参加しているサーバーから自動的に検出を試みます。")
+    else:
+        print(f"設定済み: GUILD_ID={GUILD_ID}, ROLE_ID={ROLE_ID}")
 
     # Botを別スレッドで開始
     if DISCORD_BOT_TOKEN:
