@@ -665,15 +665,22 @@ async def on_ready():
             print('自動検出: デフォルトロールなし')
     else:
         print('自動検出: サーバーが見つかりません')
+    
+    # コマンドを同期
+    try:
+        synced = await bot.tree.sync()
+        print(f'コマンドを同期しました: {len(synced)}個のコマンド')
+    except Exception as e:
+        print(f'コマンド同期エラー: {e}')
 
 @bot.event
 async def on_member_join(member):
     print(f'{member.name} がサーバーに参加しました')
 
-@bot.command(name='auth')
-async def auth_user(ctx):
+@bot.tree.command(name='auth', description='OAuth2認証を開始します')
+async def auth_user(interaction: discord.Interaction):
     """OAuth2認証を促すボタンを表示"""
-    user_info = user_data.get(str(ctx.author.id))
+    user_info = user_data.get(str(interaction.user.id))
 
     # サーバーとロール情報を取得
     auto_guild_id, auto_role_id = get_auto_guild_and_role()
@@ -726,12 +733,16 @@ async def auth_user(ctx):
 
     # 認証ボタンを追加
     view = AuthView(guild_name, role_name)
-    await ctx.send(embed=embed, view=view)
+    await interaction.response.send_message(embed=embed, view=view)
 
-@bot.command(name='setuprole')
-@commands.has_permissions(administrator=True)
-async def setup_role_button(ctx, role: discord.Role):
+@bot.tree.command(name='setuprole', description='指定したロールを付与するボタンを設置します（管理者のみ）')
+@discord.app_commands.describe(role='付与するロールを選択してください')
+async def setup_role_button(interaction: discord.Interaction, role: discord.Role):
     """管理者が指定したロールを付与するボタンを設置"""
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ このコマンドは管理者のみ使用できます。", ephemeral=True)
+        return
+        
     embed = discord.Embed(
         title="🎭 ロール付与システム",
         description=f"**{role.name}** ロールを取得するには下のボタンをクリックしてください。",
@@ -752,8 +763,7 @@ async def setup_role_button(ctx, role: discord.Role):
 
     # ロール付与ボタンを追加
     view = RoleAssignView(role.id)
-    await ctx.send(embed=embed, view=view)
-    await ctx.message.delete()  # 設置コマンドを削除
+    await interaction.response.send_message(embed=embed, view=view)
 
 # 認証ボタンのビュークラス
 class AuthView(discord.ui.View):
@@ -852,23 +862,27 @@ class RoleAssignView(discord.ui.View):
                 ephemeral=True
             )
 
-@bot.command(name='role')
-@commands.has_permissions(administrator=True)
-async def give_role(ctx, member: discord.Member):
+@bot.tree.command(name='role', description='指定したメンバーにロールを付与します（管理者のみ）')
+@discord.app_commands.describe(member='ロールを付与するメンバーを選択してください')
+async def give_role(interaction: discord.Interaction, member: discord.Member):
     """指定したメンバーにロールを付与"""
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ このコマンドは管理者のみ使用できます。", ephemeral=True)
+        return
+        
     auto_guild_id, auto_role_id = get_auto_guild_and_role()
     target_role_id = auto_role_id or ROLE_ID
     
     if not target_role_id or target_role_id == 0:
-        await ctx.send("ROLE_IDが設定されておらず、自動検出もできないため、ロールを付与できません。")
+        await interaction.response.send_message("ROLE_IDが設定されておらず、自動検出もできないため、ロールを付与できません。", ephemeral=True)
         return
 
-    role = ctx.guild.get_role(target_role_id)
+    role = interaction.guild.get_role(target_role_id)
     if role:
         await member.add_roles(role)
-        await ctx.send(f'{member.mention} に {role.name} ロールを付与しました！')
+        await interaction.response.send_message(f'{member.mention} に {role.name} ロールを付与しました！')
     else:
-        await ctx.send("指定されたロールが見つかりません。")
+        await interaction.response.send_message("指定されたロールが見つかりません。", ephemeral=True)
 
 def run_bot():
     """Botを別スレッドで実行"""
