@@ -18,7 +18,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your-secret-key-here')
 # Discord OAuth2 settings
 DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID')
 DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET')
-DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', 'https://b1ff4a8c-014f-460e-91d3-13f489d30b81-00-1xd9iw4q1zt29.sisko.replit.dev/callback')
+DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', 'https://a-9v1e.onrender.com/callback')
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
 GUILD_ID = int(os.environ.get('GUILD_ID', '1378687067260846290')) if os.environ.get('GUILD_ID', '1378687067260846290').isdigit() else 1378687067260846290
 ROLE_ID = int(os.environ.get('ROLE_ID', '1378687067260846292')) if os.environ.get('ROLE_ID', '1378687067260846292').isdigit() else 1378687067260846292
@@ -882,7 +882,7 @@ class AuthView(discord.ui.View):
         self.role_name = role_name
 
         # 認証URLを生成  
-        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fe68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev%2Fcallback&scope=email+identify"
+        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fa-9v1e.onrender.com%2Fcallback&scope=email+identify"
 
         # URLボタンを追加
         self.add_item(discord.ui.Button(
@@ -902,7 +902,7 @@ class RoleAssignView(discord.ui.View):
         self.role_id = role_id
 
         # OAuth2認証サイトのURLを生成
-        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fe68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev%2Fcallback&scope=email+identify"
+        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fa-9v1e.onrender.com%2Fcallback&scope=email+identify"
 
         # URLボタンを追加
         self.add_item(discord.ui.Button(
@@ -964,7 +964,7 @@ if __name__ == '__main__':
     print(f"- DISCORD_REDIRECT_URI長さ: {len(DISCORD_REDIRECT_URI) if DISCORD_REDIRECT_URI else 0}")
 
     # URLが正しく設定されているかチェック
-    expected_url = "https://e68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev/callback"
+    expected_url = "https://a-9v1e.onrender.com/callback"
 
     if not DISCORD_REDIRECT_URI:
         print("❌ エラー: DISCORD_REDIRECT_URIが設定されていません！")
