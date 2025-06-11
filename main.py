@@ -18,20 +18,20 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your-secret-key-here')
 # Discord OAuth2 settings
 DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID')
 DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET')
-DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', 'https://your-repl-url.replit.dev/callback')
+DISCORD_REDIRECT_URI = os.environ.get('DISCORD_REDIRECT_URI', 'https://b1ff4a8c-014f-460e-91d3-13f489d30b81-00-1xd9iw4q1zt29.sisko.replit.dev/callback')
 DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN')
-GUILD_ID = int(os.environ.get('GUILD_ID', '0')) if os.environ.get('GUILD_ID', '0').isdigit() else 0
-ROLE_ID = int(os.environ.get('ROLE_ID', '0')) if os.environ.get('ROLE_ID', '0').isdigit() else 0
+GUILD_ID = int(os.environ.get('GUILD_ID', '1378687067260846290')) if os.environ.get('GUILD_ID', '1378687067260846290').isdigit() else 1378687067260846290
+ROLE_ID = int(os.environ.get('ROLE_ID', '1378687067260846292')) if os.environ.get('ROLE_ID', '1378687067260846292').isdigit() else 1378687067260846292
 
 def get_auto_guild_and_role():
     """Botが参加しているサーバーから自動的にGUILD_IDとROLE_IDを取得"""
     if not bot.is_ready():
         return None, None
-    
+
     # 環境変数で指定されている場合はそれを優先
     if GUILD_ID and GUILD_ID != 0 and ROLE_ID and ROLE_ID != 0:
         return GUILD_ID, ROLE_ID
-    
+
     # Botが参加している最初のサーバーを取得
     if bot.guilds:
         guild = bot.guilds[0]
@@ -40,11 +40,11 @@ def get_auto_guild_and_role():
             if role.name != "@everyone" and not role.managed:
                 print(f"自動選択: サーバー '{guild.name}' (ID: {guild.id}), ロール '{role.name}' (ID: {role.id})")
                 return guild.id, role.id
-        
+
         # 適切なロールが見つからない場合はサーバーIDのみ返す
         print(f"自動選択: サーバー '{guild.name}' (ID: {guild.id}), ロールなし")
         return guild.id, None
-    
+
     return None, None
 
 # サーバー選択用のデータ
@@ -102,51 +102,102 @@ def get_bot_guilds():
 
 async def assign_role_to_user(user_id, access_token, guild_id=None, role_id=None):
     """ユーザーにロールを付与する非同期関数"""
+    print(f"=== ロール付与処理開始 ===")
+    print(f"ユーザーID: {user_id}")
+    print(f"指定されたギルドID: {guild_id}")
+    print(f"指定されたロールID: {role_id}")
+    
     # パラメータで指定されない場合は自動検出または環境変数を使用
     if guild_id is None or role_id is None:
         auto_guild_id, auto_role_id = get_auto_guild_and_role()
         target_guild_id = guild_id or auto_guild_id or GUILD_ID
         target_role_id = role_id or auto_role_id or ROLE_ID
+        print(f"自動検出後 - ギルドID: {target_guild_id}, ロールID: {target_role_id}")
     else:
         target_guild_id = guild_id
         target_role_id = role_id
 
     if not target_guild_id or target_guild_id == 0:
-        print("GUILD_IDが設定されておらず、自動検出もできないため、ロール付与をスキップします")
+        print("❌ GUILD_IDが設定されておらず、自動検出もできないため、ロール付与をスキップします")
+        return "スキップ"
+
+    if not target_role_id or target_role_id == 0:
+        print("❌ ROLE_IDが設定されておらず、自動検出もできないため、ロール付与をスキップします")
         return "スキップ"
 
     try:
         guild = bot.get_guild(target_guild_id)
         if not guild:
-            print("指定されたギルドが見つかりません")
+            print(f"❌ 指定されたギルド（ID: {target_guild_id}）が見つかりません")
+            print(f"Botが参加しているギルド: {[g.name for g in bot.guilds]}")
             return False
 
-        # ユーザーをサーバーに追加（既に参加している場合はスキップ）
-        try:
-            await bot.http.add_user_to_guild(target_guild_id, user_id, access_token)
-        except discord.HTTPException:
-            pass  # 既に参加している場合やその他のHTTPエラー
-        except Exception as e:
-            print(f"サーバー追加エラー: {e}")
+        print(f"✅ ギルド '{guild.name}' を取得しました")
 
-        # 少し待ってからメンバーを取得
-        await asyncio.sleep(1)
-
-        member = guild.get_member(int(user_id))
-        if member:
-            role = guild.get_role(target_role_id) if target_role_id and target_role_id != 0 else None
-            if role:
-                await member.add_roles(role)
-                print(f"ロール '{role.name}' を {member.name} に付与しました")
-                return True
-            else:
-                print("指定されたロールが見つかりません")
+        # まず、ユーザーがすでにサーバーのメンバーかチェック
+        existing_member = guild.get_member(int(user_id))
+        if existing_member:
+            print(f"✅ ユーザーは既にサーバー '{guild.name}' のメンバーです")
         else:
-            print("メンバーが見つかりません")
-    except Exception as e:
-        print(f"ロール付与処理エラー: {e}")
+            print(f"ℹ️ ユーザーをサーバー '{guild.name}' に追加を試みます...")
+            # ユーザーをサーバーに追加
+            try:
+                await bot.http.add_user_to_guild(target_guild_id, user_id, access_token)
+                print(f"✅ ユーザーをサーバーに追加しました")
+                # 少し待ってからメンバーを取得
+                await asyncio.sleep(2)
+            except discord.HTTPException as e:
+                print(f"⚠️ サーバー追加HTTPエラー: {e}")
+                if e.status == 403:
+                    print("❌ Botにユーザー追加権限がないか、ユーザーが既に参加している可能性があります")
+                elif e.status == 401:
+                    print("❌ アクセストークンが無効です")
+                # エラーでも続行（既に参加している場合があるため）
+            except Exception as e:
+                print(f"⚠️ サーバー追加エラー: {e}")
 
-    return False
+        # メンバーを再取得
+        member = guild.get_member(int(user_id))
+        if not member:
+            print(f"❌ メンバーが見つかりません（ユーザーID: {user_id}）")
+            print(f"サーバー '{guild.name}' のメンバー数: {guild.member_count}")
+            return False
+
+        print(f"✅ メンバー '{member.display_name}' を取得しました")
+
+        # ロールを取得
+        role = guild.get_role(target_role_id)
+        if not role:
+            print(f"❌ 指定されたロール（ID: {target_role_id}）が見つかりません")
+            print(f"利用可能なロール: {[(r.id, r.name) for r in guild.roles if not r.managed]}")
+            return False
+
+        print(f"✅ ロール '{role.name}' を取得しました")
+
+        # すでにロールを持っているかチェック
+        if role in member.roles:
+            print(f"ℹ️ ユーザーは既にロール '{role.name}' を持っています")
+            return True
+
+        # ロールを付与
+        try:
+            await member.add_roles(role, reason="OAuth2認証によるロール付与")
+            print(f"✅ ロール '{role.name}' を {member.display_name} に付与しました")
+            return True
+        except discord.Forbidden:
+            print(f"❌ ロール付与権限がありません。Botのロールが '{role.name}' より上位にある必要があります")
+            print(f"Botの最高ロール: {guild.me.top_role.name} (位置: {guild.me.top_role.position})")
+            print(f"付与しようとしたロール: {role.name} (位置: {role.position})")
+            return False
+        except Exception as e:
+            print(f"❌ ロール付与エラー: {e}")
+            return False
+
+    except Exception as e:
+        print(f"❌ ロール付与処理エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 # HTML templates
 LOGIN_TEMPLATE = '''
@@ -241,39 +292,17 @@ LOGIN_TEMPLATE = '''
         <div class="auth-section">
             <p><strong>作成者、mumei</strong></p>
 
-            {% if guilds %}
-            <div class="server-selection">
-                <h3>サーバーとロールを選択してください：</h3>
-                {% for guild in guilds %}
-                <div class="server-card" id="server-{{ guild.id }}" onclick="selectServer({{ guild.id }})">
-                    <h4>{{ guild.name }}</h4>
-                    <p>メンバー数: {{ guild.member_count }}</p>
-                    <div class="role-list">
-                        {% for role in guild.roles[:5] %}
-                        <span class="role-tag">{{ role.name }}</span>
-                        {% endfor %}
-                        {% if guild.roles|length > 5 %}
-                        <span class="role-tag">+{{ guild.roles|length - 5 }}個</span>
-                        {% endif %}
-                    </div>
-                    <select class="role-select" id="role-select-{{ guild.id }}" style="display: none;" onchange="selectRole({{ guild.id }})">
-                        <option value="">ロールを選択...</option>
-                        {% for role in guild.roles %}
-                        <option value="{{ role.id }}">{{ role.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
+
+
+
 
             <div style="margin-top: 30px;">
-                <button onclick="startLogin()" class="btn">
+                <a href="/login" class="btn">
                     <svg class="discord-icon" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
                     </svg>
                     Discordでログイン
-                </button>
+                </a>
             </div>
 
             <p style="font-size: 12px; color: #999; margin-top: 20px;">
@@ -352,7 +381,7 @@ SUCCESS_TEMPLATE = '''
             Discord認証が正常に完了しました。<br>
             ようこそ！
         </div>
-        
+
         {% if role_status != "ロール付与に失敗しました" %}
         <div class="role-status">
             {% if role_status == "ロール付与はスキップされました（GUILD_ID未設定）" %}
@@ -362,7 +391,7 @@ SUCCESS_TEMPLATE = '''
             {% endif %}
         </div>
         {% endif %}
-        
+
         <a href="/logout" class="btn">ログアウト</a>
     </div>
 </body>
@@ -488,14 +517,21 @@ def login():
     if role_id:
         session['selected_role_id'] = int(role_id)
 
-    discord_login_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={DISCORD_REDIRECT_URI}&response_type=code&scope=identify%20email%20guilds.join"
+    discord_login_url = f"https://discord.com/api/oauth2/authorize?client_id={DISCORD_CLIENT_ID}&redirect_uri={DISCORD_REDIRECT_URI}&response_type=code&scope=identify%20email"
     return redirect(discord_login_url)
 
 @app.route('/callback')
 def callback():
     code = request.args.get('code')
+    print(f"=== 認証コールバック開始 ===")
+    print(f"受信コード: {code}")
+    print(f"リダイレクトURI: '{DISCORD_REDIRECT_URI}'")
+    print(f"クライアントID: {DISCORD_CLIENT_ID}")
+    print(f"クライアントシークレット: {'設定済み' if DISCORD_CLIENT_SECRET else '未設定'}")
+
     if not code:
-        return "認証に失敗しました", 400
+        print("エラー: 認証コードが見つかりません")
+        return "認証に失敗しました: コードが見つかりません", 400
 
     # Access token取得
     data = {
@@ -506,14 +542,34 @@ def callback():
         'redirect_uri': DISCORD_REDIRECT_URI
     }
 
+    print(f"送信データ: {data}")
+
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    r = requests.post('https://discord.com/api/oauth2/token', data=data, headers=headers)
+    print(f"Discord APIにトークンリクエスト送信中...")
 
-    if r.status_code != 200:
-        return "トークン取得に失敗しました", 400
+    try:
+        r = requests.post('https://discord.com/api/oauth2/token', data=data, headers=headers)
+        print(f"Discord APIレスポンス: ステータス={r.status_code}")
+        print(f"レスポンスヘッダー: {dict(r.headers)}")
 
-    token_data = r.json()
-    access_token = token_data['access_token']
+        if r.status_code != 200:
+            error_text = r.text
+            print(f"エラーレスポンス内容: {error_text}")
+            try:
+                error_json = r.json()
+                print(f"エラーJSON: {error_json}")
+                error_description = error_json.get('error_description', 'Unknown error')
+                return f"トークン取得に失敗しました: {error_description} (ステータス: {r.status_code})", 400
+            except:
+                return f"トークン取得に失敗しました: {error_text} (ステータス: {r.status_code})", 400
+
+        token_data = r.json()
+        print(f"トークン取得成功: {list(token_data.keys())}")
+        access_token = token_data['access_token']
+
+    except Exception as e:
+        print(f"リクエスト送信エラー: {e}")
+        return f"リクエスト送信エラー: {str(e)}", 500
 
     # ユーザー情報取得
     headers = {'Authorization': f'Bearer {access_token}'}
@@ -545,16 +601,30 @@ def callback():
         # セッションから選択されたサーバーとロールを取得
         selected_guild_id = session.get('selected_guild_id')
         selected_role_id = session.get('selected_role_id')
-
-        # 非同期でロール付与を実行
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        role_granted = loop.run_until_complete(
-            assign_role_to_user(user_info['id'], access_token, selected_guild_id, selected_role_id)
-        )
-        loop.close()
+        
+        print(f"=== 認証コールバックでのロール付与開始 ===")
+        print(f"ユーザー情報: {user_info['username']}#{user_info['discriminator']} (ID: {user_info['id']})")
+        print(f"選択されたギルドID: {selected_guild_id}")
+        print(f"選択されたロールID: {selected_role_id}")
+        print(f"環境変数GUILD_ID: {GUILD_ID}")
+        print(f"環境変数ROLE_ID: {ROLE_ID}")
+        print(f"Botの準備状況: {bot.is_ready()}")
+        
+        if not bot.is_ready():
+            print("❌ Botがまだ準備できていません。数秒待ってから再試行してください。")
+            role_granted = False
+        else:
+            # Botのイベントループを使用して非同期でロール付与を実行
+            future = asyncio.run_coroutine_threadsafe(
+                assign_role_to_user(user_info['id'], access_token, selected_guild_id, selected_role_id),
+                bot.loop
+            )
+            role_granted = future.result(timeout=30)  # 30秒でタイムアウト
+            print(f"ロール付与結果: {role_granted}")
     except Exception as e:
-        print(f"ロール付与エラー: {e}")
+        print(f"❌ ロール付与エラー: {e}")
+        import traceback
+        traceback.print_exc()
 
     session['role_granted'] = role_granted
 
@@ -567,13 +637,13 @@ def admin_dashboard():
         return ('管理者認証が必要です', 401, {
             'WWW-Authenticate': 'Basic realm="Admin Area"'
         })
-    
+
     users_list = list(user_data.values())
     bot_guilds = get_bot_guilds()
-    
+
     # オンラインユーザー数（簡易実装）
     online_users = len([u for u in users_list if u])  # 実際はDiscord APIで確認
-    
+
     return render_template_string(ADMIN_TEMPLATE, 
                                 users=users_list, 
                                 bot_guilds=bot_guilds,
@@ -586,11 +656,11 @@ def admin_user_detail(user_id):
         return ('管理者認証が必要です', 401, {
             'WWW-Authenticate': 'Basic realm="Admin Area"'
         })
-    
+
     user = user_data.get(user_id)
     if not user:
         return "ユーザーが見つかりません", 404
-    
+
     return jsonify(user)
 
 @app.route('/admin/export')
@@ -600,7 +670,7 @@ def admin_export():
         return ('管理者認証が必要です', 401, {
             'WWW-Authenticate': 'Basic realm="Admin Area"'
         })
-    
+
     return jsonify({
         'export_date': datetime.now().isoformat(),
         'total_users': len(user_data),
@@ -614,11 +684,11 @@ def admin_clear():
         return ('管理者認証が必要です', 401, {
             'WWW-Authenticate': 'Basic realm="Admin Area"'
         })
-    
+
     if request.method == 'POST':
         user_data.clear()
         return redirect('/admin')
-    
+
     return '''
     <form method="POST">
         <p>本当に全ユーザーデータを削除しますか？</p>
@@ -645,33 +715,67 @@ def api_guilds():
 # Discord Bot events
 @bot.event
 async def on_ready():
-    print(f'{bot.user} としてログインしました!')
+    print(f'✅ {bot.user} としてログインしました!')
     print(f'Bot ID: {bot.user.id}')
-    
+
     # 参加しているサーバー一覧を表示
     print(f'参加サーバー数: {len(bot.guilds)}')
     for guild in bot.guilds:
         print(f'  - {guild.name} (ID: {guild.id}, メンバー数: {guild.member_count})')
-    
+        
+        # Botの権限をチェック
+        bot_member = guild.me
+        if bot_member:
+            print(f'    Botの最高ロール: {bot_member.top_role.name} (位置: {bot_member.top_role.position})')
+            print(f'    Botの権限: 管理者={bot_member.guild_permissions.administrator}, ロール管理={bot_member.guild_permissions.manage_roles}')
+        
+        # サーバーのロール一覧（管理しやすいロールのみ）
+        manageable_roles = [r for r in guild.roles if not r.managed and r.name != "@everyone"]
+        if manageable_roles:
+            print(f'    管理可能なロール: {[(r.name, r.id) for r in manageable_roles[:5]]}{"..." if len(manageable_roles) > 5 else ""}')
+
     # 自動検出されたGUILD_IDとROLE_IDを表示
     auto_guild_id, auto_role_id = get_auto_guild_and_role()
     if auto_guild_id:
         guild = bot.get_guild(auto_guild_id)
         role = bot.get_guild(auto_guild_id).get_role(auto_role_id) if auto_role_id else None
-        print(f'自動検出: デフォルトサーバー "{guild.name}" (ID: {auto_guild_id})')
+        print(f'✅ 自動検出: デフォルトサーバー "{guild.name}" (ID: {auto_guild_id})')
         if role:
-            print(f'自動検出: デフォルトロール "{role.name}" (ID: {auto_role_id})')
+            print(f'✅ 自動検出: デフォルトロール "{role.name}" (ID: {auto_role_id})')
+            # ロールの付与可能性をチェック
+            if role.position >= guild.me.top_role.position:
+                print(f'⚠️ 警告: ロール "{role.name}" はBotのロールより上位または同位のため、付与できません')
         else:
-            print('自動検出: デフォルトロールなし')
+            print('⚠️ 自動検出: デフォルトロールなし')
     else:
-        print('自動検出: サーバーが見つかりません')
+        print('❌ 自動検出: サーバーが見つかりません')
+
+    # 環境変数との整合性チェック
+    print(f'\n=== 環境変数チェック ===')
+    print(f'GUILD_ID設定値: {GUILD_ID}')
+    print(f'ROLE_ID設定値: {ROLE_ID}')
     
+    if GUILD_ID and GUILD_ID != 0:
+        config_guild = bot.get_guild(GUILD_ID)
+        if config_guild:
+            print(f'✅ 設定されたギルド "{config_guild.name}" が見つかりました')
+            if ROLE_ID and ROLE_ID != 0:
+                config_role = config_guild.get_role(ROLE_ID)
+                if config_role:
+                    print(f'✅ 設定されたロール "{config_role.name}" が見つかりました')
+                    if config_role.position >= config_guild.me.top_role.position:
+                        print(f'❌ エラー: ロール "{config_role.name}" はBotより上位のため付与できません')
+                else:
+                    print(f'❌ エラー: 設定されたロール（ID: {ROLE_ID}）が見つかりません')
+        else:
+            print(f'❌ エラー: 設定されたギルド（ID: {GUILD_ID}）が見つかりません')
+
     # コマンドを同期
     try:
         synced = await bot.tree.sync()
-        print(f'コマンドを同期しました: {len(synced)}個のコマンド')
+        print(f'✅ コマンドを同期しました: {len(synced)}個のコマンド')
     except Exception as e:
-        print(f'コマンド同期エラー: {e}')
+        print(f'❌ コマンド同期エラー: {e}')
 
 @bot.event
 async def on_member_join(member):
@@ -742,7 +846,7 @@ async def setup_role_button(interaction: discord.Interaction, role: discord.Role
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ このコマンドは管理者のみ使用できます。", ephemeral=True)
         return
-        
+
     embed = discord.Embed(
         title="🎭 ロール付与システム",
         description=f"**{role.name}** ロールを取得するには下のボタンをクリックしてください。",
@@ -757,7 +861,7 @@ async def setup_role_button(interaction: discord.Interaction, role: discord.Role
 
     embed.add_field(
         name="ℹ️ 注意事項",
-        value="• ボタンは誰でも押せます\n• 既にロールを持っている場合は何も起こりません\n• 認証不要で即座にロールが付与されます",
+        value="• ボタンを押すとOAuth2認証サイトへ移動します\n• 認証完了後、自動的にロールが付与されます",
         inline=False
     )
 
@@ -772,36 +876,20 @@ class AuthView(discord.ui.View):
         self.guild_name = guild_name
         self.role_name = role_name
 
-    @discord.ui.button(label='Memberとして認証', style=discord.ButtonStyle.primary)
-    async def auth_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Webサイトの認証URLを生成
-        auth_url = f"{DISCORD_REDIRECT_URI.replace('/callback', '')}/login"
+    def __init__(self, guild_name="未設定", role_name="未設定"):
+        super().__init__(timeout=300)  # 5分でタイムアウト
+        self.guild_name = guild_name
+        self.role_name = role_name
 
-        embed = discord.Embed(
-            title="🔐 OAuth2認証",
-            description=f"以下のリンクをクリックして認証を完了してください：\n\n[**🔗 認証サイトへ移動**]({auth_url})",
-            color=0x5865F2
-        )
+        # 認証URLを生成  
+        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fe68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev%2Fcallback&scope=email+identify"
 
-        embed.add_field(
-            name="🏠 認証先サーバー",
-            value=self.guild_name,
-            inline=True
-        )
-
-        embed.add_field(
-            name="🎭 付与されるロール",
-            value=self.role_name,
-            inline=True
-        )
-
-        embed.add_field(
-            name="📋 認証手順",
-            value="1. 上記リンクをクリック\n2. Discordでログイン\n3. 認証を許可\n4. 自動的にロールが付与されます",
-            inline=False
-        )
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # URLボタンを追加
+        self.add_item(discord.ui.Button(
+            label='登録リンク', 
+            style=discord.ButtonStyle.link, 
+            url=auth_url
+        ))
 
 # ロール付与ボタンのビュークラス
 class RoleAssignView(discord.ui.View):
@@ -809,58 +897,19 @@ class RoleAssignView(discord.ui.View):
         super().__init__(timeout=None)  # 永続的なボタン
         self.role_id = role_id
 
-    @discord.ui.button(label='🎭 ロールを取得', style=discord.ButtonStyle.success, emoji='🎭')
-    async def role_assign_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            role = interaction.guild.get_role(self.role_id)
-            member = interaction.user
+    def __init__(self, role_id):
+        super().__init__(timeout=None)  # 永続的なボタン
+        self.role_id = role_id
 
-            if not role:
-                await interaction.response.send_message(
-                    "❌ ロールが見つかりません。管理者にお問い合わせください。",
-                    ephemeral=True
-                )
-                return
+        # OAuth2認証サイトのURLを生成
+        auth_url = "https://discord.com/oauth2/authorize?client_id=1379345672440119376&response_type=code&redirect_uri=https%3A%2F%2Fe68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev%2Fcallback&scope=email+identify"
 
-            if role in member.roles:
-                await interaction.response.send_message(
-                    f"✅ あなたは既に **{role.name}** ロールを持っています。",
-                    ephemeral=True
-                )
-                return
-
-            await member.add_roles(role)
-            
-            embed = discord.Embed(
-                title="🎉 ロール付与完了！",
-                description=f"**{role.name}** ロールが正常に付与されました。",
-                color=role.color if role.color.value != 0 else 0x00ff00
-            )
-
-            embed.add_field(
-                name="👤 ユーザー",
-                value=member.mention,
-                inline=True
-            )
-
-            embed.add_field(
-                name="🎭 付与されたロール",
-                value=role.mention,
-                inline=True
-            )
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ ロールを付与する権限がありません。Botの権限設定を確認してください。",
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                f"❌ エラーが発生しました: {str(e)}",
-                ephemeral=True
-            )
+        # URLボタンを追加
+        self.add_item(discord.ui.Button(
+            label='登録リンク', 
+            style=discord.ButtonStyle.link, 
+            url=auth_url
+        ))
 
 @bot.tree.command(name='role', description='指定したメンバーにロールを付与します（管理者のみ）')
 @discord.app_commands.describe(member='ロールを付与するメンバーを選択してください')
@@ -869,10 +918,10 @@ async def give_role(interaction: discord.Interaction, member: discord.Member):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("❌ このコマンドは管理者のみ使用できます。", ephemeral=True)
         return
-        
+
     auto_guild_id, auto_role_id = get_auto_guild_and_role()
     target_role_id = auto_role_id or ROLE_ID
-    
+
     if not target_role_id or target_role_id == 0:
         await interaction.response.send_message("ROLE_IDが設定されておらず、自動検出もできないため、ロールを付与できません。", ephemeral=True)
         return
@@ -911,15 +960,31 @@ if __name__ == '__main__':
     print(f"- DISCORD_CLIENT_ID: {'設定済み' if DISCORD_CLIENT_ID else '未設定'}")
     print(f"- DISCORD_CLIENT_SECRET: {'設定済み' if DISCORD_CLIENT_SECRET else '未設定'}")
     print(f"- DISCORD_BOT_TOKEN: {'設定済み' if DISCORD_BOT_TOKEN else '未設定'}")
-    print(f"- DISCORD_REDIRECT_URI: {DISCORD_REDIRECT_URI}")
+    print(f"- DISCORD_REDIRECT_URI: '{DISCORD_REDIRECT_URI}'")
+    print(f"- DISCORD_REDIRECT_URI長さ: {len(DISCORD_REDIRECT_URI) if DISCORD_REDIRECT_URI else 0}")
+
+    # URLが正しく設定されているかチェック
+    expected_url = "https://e68131e8-4bf1-4dc2-ad95-fdb479b508b3-00-34rakhl0y8ykm.sisko.replit.dev/callback"
+
+    if not DISCORD_REDIRECT_URI:
+        print("❌ エラー: DISCORD_REDIRECT_URIが設定されていません！")
+    elif DISCORD_REDIRECT_URI == "https://your-repl-url.replit.dev/callback":
+        print("❌ 警告: DISCORD_REDIRECT_URIがデフォルト値のままです！")
+        print(f"   正しいURLに更新してください: {expected_url}")
+    elif DISCORD_REDIRECT_URI == expected_url:
+        print("✅ DISCORD_REDIRECT_URIは正しく設定されています")
+    else:
+        print(f"⚠️  注意: DISCORD_REDIRECT_URIが期待値と異なります")
+        print(f"   現在値: '{DISCORD_REDIRECT_URI}'")
+        print(f"   期待値: '{expected_url}'")
     print(f"- GUILD_ID: {GUILD_ID if GUILD_ID else '未設定'}")
     print(f"- ROLE_ID: {ROLE_ID if ROLE_ID else '未設定'}")
     print()
-    
+
     if not DISCORD_BOT_TOKEN:
         print("❌ DISCORD_BOT_TOKENが設定されていません。")
         print("Render.comのダッシュボードで環境変数を設定してください。")
-    
+
     if not GUILD_ID or GUILD_ID == 0:
         print("注意: GUILD_IDが設定されていません。")
         print("Botが参加しているサーバーから自動的に検出を試みます。")
@@ -932,5 +997,4 @@ if __name__ == '__main__':
         bot_thread.start()
         print("Discord Bot started in background")
 
-    # Flaskアプリを開始
     run_flask()
